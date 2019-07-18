@@ -42,7 +42,8 @@ timeFormats = [
 	"2006-01-02",
 	"15:04:05",
 	"2006-01-02T15:04:05.999999Z",
-	"02/Jan/2006:15:04:05.999"
+	"02/Jan/2006:15:04:05.999",
+	"2014-04-20T16:50:31.000000-07:00"
 ]
 
 tags = [
@@ -75,6 +76,7 @@ tags = [
 	"dstport:integer",			# The destination port number of the connection.
 	"dstportnat:integer",		# The natted destination port number of the connection.
 	"dstmac:mac",				# The mac address of the destination host.
+	"user:string",			        # The user.
 	"dstuser:string",			# The user at the destination.
 	"dstuid:integer",			# The user id that originated the session.
 	"dstgroup:string",			# The group that originated the session.
