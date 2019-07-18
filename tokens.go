@@ -52,6 +52,7 @@ const (
 	TokenUnknown   TokenType = iota // Unknown token
 	TokenLiteral                    // Token is a fixed literal
 	TokenTime                       // Token is a timestamp, in the format listed in TimeFormats
+	TokenIP                         // Token is either an IPv4 or an IPv6
 	TokenIPv4                       // Token is an IPv4 address, in the form of a.b.c.d
 	TokenIPv6                       // Token is an IPv6 address
 	TokenInteger                    // Token is an integer number
@@ -70,6 +71,7 @@ var tokens = [...]struct {
 	{"tunknown"},
 	{"literal"},
 	{"time"},
+	{"ip"},
 	{"ipv4"},
 	{"ipv6"},
 	{"integer"},
@@ -106,6 +108,8 @@ func name2TokenType(s string) TokenType {
 		return TokenLiteral
 	case "time":
 		return TokenTime
+	case "ip":
+		return TokenIP
 	case "ipv4":
 		return TokenIPv4
 	case "ipv6":

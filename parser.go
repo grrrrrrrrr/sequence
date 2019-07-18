@@ -62,6 +62,24 @@ type stackParseNode struct {
 	value  string // value of the token evaluated
 }
 
+func (this *Parser) Print() {
+	this.root.Print()
+}
+
+func (this *parseNode) Print() {
+	fmt.Println(this)
+	for s, c := range this.lc {
+		fmt.Println("For literal ", s)
+		c.Print()
+	}
+	for t, tcs := range this.tc {
+		fmt.Println("For type", t)
+		for _, tc := range tcs {
+			tc.Print()
+		}
+	}
+}
+
 func (this stackParseNode) String() string {
 	return fmt.Sprintf("level=%d, score=%d, %s", this.level, this.score, this.node)
 }
@@ -81,7 +99,37 @@ func newParseNode() *parseNode {
 }
 
 func (this *parseNode) String() string {
-	return fmt.Sprintf("node=%s, leaf=%t, parent=%t, minus=%t", this.Token.String(), this.leaf, this.parent, this.minus)
+	return fmt.Sprintf("node=%s, leaf=%t, parent=%t, minus=%t",
+		this.Token.String(), this.leaf, this.parent, this.minus)
+}
+
+func AddToken(token *Token, parent *parseNode) *parseNode {
+	var found *parseNode
+
+	if parent.tc[token.Type] != nil {
+		for _, n := range parent.tc[token.Type] {
+			if n.Type == token.Type && n.Tag == token.Tag && n.until == token.until {
+				found = n
+				break
+			}
+		}
+	}
+
+	if found == nil {
+		found = newParseNode()
+		found.Token = *token
+		parent.tc[found.Type] = append(parent.tc[found.Type], found)
+		parent.parent = true
+	}
+
+	if token.plus || token.star {
+		found.tc[found.Type] = append(found.tc[found.Type], found)
+		found.parent = true
+	}
+
+	found.minus, found.plus, found.star = token.minus, token.plus, token.star
+
+	return found
 }
 
 // Add will add a single pattern sequence to the parser tree. This effectively
@@ -105,36 +153,13 @@ func (this *Parser) Add(seq Sequence) error {
 			}
 		}
 
-		//log.Printf("add token=%s", token)
+		// log.Printf("add token=%s", token)
 
 		var found *parseNode
 
 		switch {
 		case token.Type != TokenUnknown && token.Type != TokenLiteral:
-			// token nodes
-			if parent.tc[token.Type] != nil {
-				for _, n := range parent.tc[token.Type] {
-					if n.Type == token.Type && n.Tag == token.Tag && n.until == token.until {
-						found = n
-						break
-					}
-				}
-			}
-
-			if found == nil {
-				found = newParseNode()
-				found.Token = token
-				parent.tc[found.Type] = append(parent.tc[found.Type], found)
-				parent.parent = true
-			}
-
-			if token.plus || token.star {
-				found.tc[found.Type] = append(found.tc[found.Type], found)
-				found.parent = true
-			}
-
-			found.minus, found.plus, found.star = token.minus, token.plus, token.star
-
+			found = AddToken(&token, parent)
 		case token.Type == TokenLiteral:
 			var ok bool
 			v := strings.ToLower(token.Value)
@@ -164,7 +189,8 @@ func (this *Parser) Add(seq Sequence) error {
 				}
 
 				if grandchild == nil {
-					grandparent.tc[found.Type] = append(grandparent.tc[found.Type], found)
+					grandparent.tc[found.Type] = append(
+						grandparent.tc[found.Type], found)
 					grandparent.parent = true
 				}
 
@@ -230,7 +256,7 @@ func (this *Parser) Parse(seq Sequence) (Sequence, error) {
 		// pop the last element from the toVisit stack
 		toVisit, parent = toVisit[:len(toVisit)-1], toVisit[len(toVisit)-1]
 
-		// glog.Debugf("parent=%s, len(seq)=%d", parent.String(), len(seq))
+		// log.Printf("parent=%s, len(seq)=%d", parent.String(), len(seq))
 
 		// parent is the current token, if it's added to the list, that means it matched
 		// the last token, which means it should be part of the path. If it's level 0,
@@ -299,23 +325,37 @@ func (this *Parser) Parse(seq Sequence) (Sequence, error) {
 
 		// glog.Debugf("Checking token=%s", token)
 
+		// Whatever type the token has, it could also
+		// be interpreted as a string. Thus, if the
+		// parent does a string match using + or -, we
+		// should also match this token.
+		for _, n := range parent.node.tc[TokenString] {
+			toVisit = append(toVisit,
+				stackParseNode{n, parent.level + 1, parent.seqidx + 1,
+					parent.score + partialMatchWeight, token.Value})
+		}
+
 		switch token.Type {
 		case TokenLiteral:
-			// Find any children that's a string token and add them to the stack
-			// if len(token.Value) > 1 || (len(token.Value) == 1 && isLiteral(rune(token.Value[0]))) {
-			for _, n := range parent.node.tc[TokenString] {
-				toVisit = append(toVisit, stackParseNode{n, parent.level + 1, parent.seqidx + 1, parent.score + partialMatchWeight, token.Value})
-			}
-			// }
-
 			// If the values match, then it's a full match, add it to the stack
 			if n, ok := parent.node.lc[token.Value]; ok {
-				toVisit = append(toVisit, stackParseNode{n, parent.level + 1, parent.seqidx + 1, parent.score + fullMatchWeight, token.Value})
+				toVisit = append(toVisit,
+					stackParseNode{n, parent.level + 1, parent.seqidx + 1,
+						parent.score + fullMatchWeight, token.Value})
 			}
-
+		case TokenIPv4, TokenIPv6:
+			// Try also the TokenIP type.
+			for _, n := range parent.node.tc[TokenIP] {
+				toVisit = append(toVisit,
+					stackParseNode{n, parent.level + 1, parent.seqidx + 1,
+						parent.score + fullMatchWeight, token.Value})
+			}
+			fallthrough
 		default:
 			for _, n := range parent.node.tc[token.Type] {
-				toVisit = append(toVisit, stackParseNode{n, parent.level + 1, parent.seqidx + 1, parent.score + fullMatchWeight, token.Value})
+				toVisit = append(toVisit,
+					stackParseNode{n, parent.level + 1, parent.seqidx + 1,
+						parent.score + fullMatchWeight, token.Value})
 			}
 		}
 	}
@@ -326,7 +366,10 @@ func (this *Parser) Parse(seq Sequence) (Sequence, error) {
 			t := bestPath[i]
 			if t.plus || t.star {
 				var j int
-				for j = i + 1; j < l && (bestPath[j].star || bestPath[j].plus) && t.Tag == bestPath[j].Tag && t.Type == bestPath[j].Type; j++ {
+				for j = i + 1; j < l &&
+					(bestPath[j].star || bestPath[j].plus) &&
+					t.Tag == bestPath[j].Tag &&
+					t.Type == bestPath[j].Type; j++ {
 					t.Value += " " + bestPath[j].Value
 				}
 				bestPath[i] = t
