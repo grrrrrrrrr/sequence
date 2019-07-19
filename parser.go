@@ -274,7 +274,7 @@ func (this *Parser) Parse(seq Sequence) (Sequence, error) {
 			if parent.node.until != "" {
 				i := parent.seqidx
 				for ; i < len(seq) && seq[i].Value != parent.node.until; i++ {
-					// glog.Debugf("consuming %q", seq[i])
+					// log.Printf("consuming %q", seq[i])
 					path[l].Value += " " + seq[i].Value
 				}
 
@@ -282,7 +282,7 @@ func (this *Parser) Parse(seq Sequence) (Sequence, error) {
 
 				// Consumed all tokens, yet this is not a leaf, then wrong, continue
 				if parent.seqidx == len(seq) && !parent.node.leaf {
-					// glog.Debugf("seqidx=%d, len=%d", parent.seqidx, len(seq))
+					// log.Printf("seqidx=%d, len=%d", parent.seqidx, len(seq))
 					continue
 				}
 			}
@@ -323,7 +323,7 @@ func (this *Parser) Parse(seq Sequence) (Sequence, error) {
 			continue
 		}
 
-		// glog.Debugf("Checking token=%s", token)
+		// log.Printf("Checking token=%s", token)
 
 		// Whatever type the token has, it could also
 		// be interpreted as a string. Thus, if the
